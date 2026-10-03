@@ -117,10 +117,8 @@
 
     <script>
     (function() {
-        var ADMIN_PWD = 'change-me'; // 仅前端门面，真正鉴权在 relay-server
-        var savedPwd = localStorage.getItem('claude-admin-pwd');
-
-        if (savedPwd && savedPwd.toLowerCase() === ADMIN_PWD) showMain();
+        // 这里只把密码存起来；真正校验在 relay-server，terminal.html 连接时带上它
+        if (localStorage.getItem('claude-admin-pwd')) showMain();
 
         document.getElementById('login-btn').addEventListener('click', doLogin);
         document.getElementById('login-pwd').addEventListener('keydown', function(e) {
@@ -128,13 +126,13 @@
         });
 
         function doLogin() {
-            var pwd = document.getElementById('login-pwd').value.trim().toLowerCase();
-            if (pwd === ADMIN_PWD) {
-                localStorage.setItem('claude-admin-pwd', pwd);
-                showMain();
-            } else {
-                document.getElementById('login-error').textContent = '密码错误';
+            var pwd = document.getElementById('login-pwd').value.trim();
+            if (!pwd) {
+                document.getElementById('login-error').textContent = '请输入密码';
+                return;
             }
+            localStorage.setItem('claude-admin-pwd', pwd);
+            showMain();
         }
 
         function showMain() {

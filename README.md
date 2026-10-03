@@ -28,6 +28,6 @@
 
 ## 安全须知
 
-- 真正的鉴权在 relay-server（同一 IP 连错 5 次锁 60 秒）；选择页的密码框只是门面
+- 鉴权全部在 relay-server（同一 IP 连错 5 次锁 60 秒）；选择页只负责把密码存进 localStorage，终端页连接时带上
 - **file-server 目前没有鉴权**，公网暴露时请在 nginx 上给 `/files/` 加一层认证，或只在内网使用
 - 终端以 `--dangerously-skip-permissions` 运行 Claude Code，等同把这台电脑的 shell 交给持有密码的人
