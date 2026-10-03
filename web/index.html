@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Claude Code</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        h1 { font-size: 24px; margin-bottom: 10px; color: #eee; }
+        #status {
+            font-size: 14px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #888;
+        }
+        #status-dot.online { background: #00cc66; }
+        #status-dot.offline { background: #ff4444; }
+        #status-dot.checking { background: #ffd700; }
+        .project-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .project-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: #fff;
+            padding: 20px 30px;
+            font-size: 18px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-align: left;
+            text-decoration: none;
+        }
+        .project-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+        .project-btn:active { transform: translateY(0); }
+        .project-btn.disabled { opacity: 0.4; pointer-events: none; }
+        .project-btn .name { font-weight: bold; display: block; margin-bottom: 5px; }
+        .project-btn .path { font-size: 12px; opacity: 0.8; }
+        .footer { margin-top: 40px; font-size: 12px; opacity: 0.5; }
+
+        #login-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+        #login-pwd {
+            background: #16213e;
+            border: 1px solid #334;
+            border-radius: 10px;
+            color: #eee;
+            font-size: 16px;
+            padding: 12px 16px;
+            width: 260px;
+            outline: none;
+            text-align: center;
+        }
+        #login-pwd:focus { border-color: #667eea; }
+        #login-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            padding: 12px 40px;
+            border-radius: 10px;
+            cursor: pointer;
+            min-width: 260px;
+        }
+        #login-btn:active { opacity: 0.7; }
+        #login-error { color: #f44; font-size: 13px; height: 20px; }
+        #main-content { display: none; }
+    </style>
+</head>
+<body>
+    <div id="login-screen">
+        <h1>Claude Code</h1>
+        <input type="password" id="login-pwd" placeholder="输入密码" autocomplete="off">
+        <button id="login-btn">进入</button>
+        <div id="login-error"></div>
+    </div>
+
+    <div id="main-content">
+        <h1>Claude Code</h1>
+        <div id="status">
+            <span id="status-dot" class="checking"></span>
+            <span id="status-text">检测中...</span>
+        </div>
+        <div class="project-list" id="project-list"></div>
+        <div class="footer">Claude Code Remote (macOS)</div>
+    </div>
+
+    <script>
+    (function() {
+        var ADMIN_PWD = 'change-me'; // 仅前端门面，真正鉴权在 relay-server
+        var savedPwd = localStorage.getItem('claude-admin-pwd');
+
+        if (savedPwd && savedPwd.toLowerCase() === ADMIN_PWD) showMain();
+
+        document.getElementById('login-btn').addEventListener('click', doLogin);
+        document.getElementById('login-pwd').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') doLogin();
+        });
+
+        function doLogin() {
+            var pwd = document.getElementById('login-pwd').value.trim().toLowerCase();
+            if (pwd === ADMIN_PWD) {
+                localStorage.setItem('claude-admin-pwd', pwd);
+                showMain();
+            } else {
+                document.getElementById('login-error').textContent = '密码错误';
+            }
+        }
+
+        function showMain() {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            loadProjects();
+            checkStatus();
+            setInterval(checkStatus, 30000);
+        }
+
+        // Rendered from config/projects.json (served by file-server), so a new
+        // project shows up here without touching this page.
+        function loadProjects() {
+            var list = document.getElementById('project-list');
+            fetch('/files/api/projects', { signal: AbortSignal.timeout(8000) })
+                .then(function(r) { return r.json(); })
+                .then(function(projects) {
+                    list.innerHTML = '';
+                    projects.forEach(function(p) {
+                        var a = document.createElement('a');
+                        a.className = 'project-btn';
+                        a.href = '/claude/' + p.key + '/';
+                        var name = document.createElement('span');
+                        name.className = 'name';
+                        name.textContent = p.name;
+                        var path = document.createElement('span');
+                        path.className = 'path';
+                        path.textContent = p.path;
+                        a.appendChild(name);
+                        a.appendChild(path);
+                        list.appendChild(a);
+                    });
+                    checkStatus();
+                })
+                .catch(function() {
+                    list.textContent = '项目列表加载失败，电脑可能离线';
+                });
+        }
+
+        function checkStatus() {
+            var dot = document.getElementById('status-dot');
+            var text = document.getElementById('status-text');
+            var btns = document.querySelectorAll('.project-btn');
+
+            fetch('/files/api/ping', { signal: AbortSignal.timeout(8000) })
+                .then(function(r) {
+                    if (r.ok) {
+                        dot.className = 'online';
+                        text.textContent = '电脑在线';
+                        text.style.color = '#00cc66';
+                        for (var i = 0; i < btns.length; i++) btns[i].classList.remove('disabled');
+                    } else { setOffline(); }
+                })
+                .catch(function() { setOffline(); });
+
+            function setOffline() {
+                dot.className = 'offline';
+                text.textContent = '电脑离线';
+                text.style.color = '#ff4444';
+                for (var i = 0; i < btns.length; i++) btns[i].classList.add('disabled');
+            }
+        }
+    })();
+    </script>
+</body>
+</html>

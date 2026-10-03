@@ -1,0 +1,21 @@
+serverAddr = "<your-server-ip>"
+serverPort = 7000
+auth.token = "<your-frp-token>"
+
+# frps v0.61.1 has heartbeatTimeout=30s; send heartbeat every 10s to stay alive
+transport.heartbeatInterval = 10
+transport.heartbeatTimeout = 60
+
+[[proxies]]
+name = "relay-mac"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 7691
+remotePort = 7691
+
+[[proxies]]
+name = "files-mac"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 7690
+remotePort = 7690

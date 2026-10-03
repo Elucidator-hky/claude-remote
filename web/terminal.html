@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Claude Code</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.5.0/xterm.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-text-size-adjust: 100%; }
+        body {
+            background: #1a1a2e;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #header {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: #16213e;
+            flex-shrink: 0;
+            gap: 8px;
+        }
+        #project-name {
+            flex: 1;
+            font-size: 16px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        .hdr-btn {
+            background: none;
+            border: 1px solid #445;
+            color: #8888cc;
+            font-size: 12px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        #status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #888;
+        }
+        #status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #888;
+            transition: background-color 0.3s;
+        }
+
+        #terminal-container {
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+            padding: 2px;
+            touch-action: pan-y;
+        }
+        #terminal-container .xterm { height: 100%; }
+        #terminal-container .xterm-viewport {
+            -webkit-overflow-scrolling: touch;
+            overflow-y: auto !important;
+        }
+
+        #btn-stop { background: #a33; }
+        #input-area {
+            display: flex;
+            gap: 6px;
+            padding: 6px 8px;
+            padding-bottom: max(6px, env(safe-area-inset-bottom));
+            background: #0f1529;
+            flex-shrink: 0;
+            align-items: flex-end;
+        }
+        #input-text {
+            flex: 1;
+            background: #16213e;
+            border: 1px solid #2a3a5c;
+            border-radius: 20px;
+            color: #eee;
+            font-size: 15px;
+            padding: 8px 14px;
+            resize: none;
+            outline: none;
+            font-family: inherit;
+            max-height: 100px;
+            line-height: 1.4;
+            transition: border-color 0.2s;
+        }
+        #input-text::placeholder { color: #4a5568; }
+        #input-text:focus { border-color: #667eea; }
+        .input-btn {
+            border: none;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 0;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.15s;
+        }
+        .input-btn:active { opacity: 0.7; }
+        #btn-send { background: linear-gradient(135deg, #667eea, #764ba2); }
+        #btn-attach {
+            background: #1e2d4a;
+            border: 1px solid #2a3a5c;
+            color: #8899bb;
+            font-size: 16px;
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            padding: 0;
+        }
+        #btn-attach:active { opacity: 0.7; }
+
+        #overlay {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.85);
+            padding: 24px 32px;
+            border-radius: 14px;
+            text-align: center;
+            display: none;
+            z-index: 10;
+            min-width: 200px;
+        }
+        #overlay.show { display: block; }
+        #overlay .spinner {
+            border: 3px solid #333;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px; height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        #overlay-text { font-size: 14px; line-height: 1.5; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #login-screen {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #1a1a2e;
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+        #login-screen.show { display: flex; }
+        #login-pwd {
+            background: #16213e;
+            border: 1px solid #334;
+            border-radius: 10px;
+            color: #eee;
+            font-size: 16px;
+            padding: 12px 16px;
+            width: 260px;
+            outline: none;
+            text-align: center;
+        }
+        #login-pwd:focus { border-color: #667eea; }
+        #login-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            padding: 12px 40px;
+            border-radius: 10px;
+            cursor: pointer;
+            min-width: 260px;
+        }
+        #login-btn:active { opacity: 0.7; }
+        #login-error { color: #f44; font-size: 13px; height: 20px; }
+
+        #btn-bottom {
+            position: absolute;
+            right: 14px;
+            bottom: 80px;
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            background: rgba(102, 126, 234, 0.85);
+            border: none;
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            display: none;
+            z-index: 5;
+            line-height: 40px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        #btn-bottom:active { opacity: 0.7; }
+
+        #key-toolbar {
+            display: flex;
+            gap: 6px;
+            padding: 4px 8px;
+            background: #0f1529;
+            flex-shrink: 0;
+            border-top: 1px solid #1e2d4a;
+        }
+        .key-btn {
+            background: #1e2d4a;
+            border: 1px solid #2a3a5c;
+            color: #8899bb;
+            font-size: 13px;
+            padding: 5px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            flex: 1;
+            text-align: center;
+            min-height: 32px;
+            line-height: 1;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .key-btn:active { background: #2a3a5c; color: #cdd6f4; }
+
+        #attach-preview {
+            display: none;
+            padding: 6px 10px;
+            background: #0f1529;
+            flex-shrink: 0;
+            gap: 8px;
+            align-items: center;
+        }
+        #attach-preview.show { display: flex; }
+        #attach-preview img {
+            max-height: 60px;
+            max-width: 120px;
+            border-radius: 6px;
+            border: 1px solid #334;
+            object-fit: contain;
+        }
+        #attach-preview .attach-name {
+            flex: 1;
+            font-size: 12px;
+            color: #8899aa;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #attach-preview .attach-remove {
+            background: none;
+            border: none;
+            color: #f44;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 4px 8px;
+        }
+        #attach-uploading {
+            font-size: 12px;
+            color: #ffd700;
+            padding: 4px 10px;
+            display: none;
+        }
+
+        #file-panel {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #1a1a2e;
+            z-index: 20;
+            display: none;
+            flex-direction: column;
+        }
+        #file-panel.show { display: flex; }
+        #file-header {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: #16213e;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        #file-header button.icon-btn {
+            background: none;
+            border: none;
+            color: #8888cc;
+            font-size: 18px;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+        #file-path {
+            flex: 1;
+            font-size: 13px;
+            color: #aab;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #btn-upload {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        #btn-upload:active { opacity: 0.7; }
+        #file-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 14px;
+            border-bottom: 1px solid #222240;
+            gap: 10px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .file-item:active { background: #222240; }
+        .file-icon { font-size: 20px; width: 28px; text-align: center; flex-shrink: 0; }
+        .file-info { flex: 1; min-width: 0; }
+        .file-name {
+            font-size: 15px;
+            color: #dde;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .file-meta { font-size: 12px; color: #667; margin-top: 2px; }
+        .file-dl {
+            background: none;
+            border: 1px solid #445;
+            color: #8888cc;
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .file-dl:active { opacity: 0.7; }
+        #file-loading {
+            text-align: center;
+            padding: 40px;
+            color: #667;
+            font-size: 14px;
+        }
+        #file-empty {
+            text-align: center;
+            padding: 40px;
+            color: #556;
+            font-size: 14px;
+            display: none;
+        }
+        #upload-progress {
+            padding: 8px 14px;
+            background: #16213e;
+            font-size: 13px;
+            color: #8d8;
+            display: none;
+            flex-shrink: 0;
+        }
+
+        #help-guide {
+            background: #16213e;
+            padding: 12px 14px;
+            font-size: 13px;
+            line-height: 1.8;
+            color: #8899aa;
+            flex-shrink: 0;
+            display: none;
+            border-bottom: 1px solid #222240;
+            max-height: 50vh;
+            overflow-y: auto;
+        }
+        #help-guide.show { display: block; }
+        #help-guide b { color: #cdd6f4; }
+        #help-guide .guide-title { font-size: 14px; font-weight: 600; color: #cdd6f4; margin-bottom: 8px; }
+        #help-guide .guide-section { margin-bottom: 8px; }
+        #help-guide .help-close {
+            float: right;
+            background: none;
+            border: 1px solid #445;
+            color: #8899aa;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="login-screen">
+        <h2 style="color:#cdd6f4;font-size:20px;">Claude Code</h2>
+        <input type="password" id="login-pwd" placeholder="输入密码" autocomplete="off">
+        <button id="login-btn">进入</button>
+        <div id="login-error"></div>
+    </div>
+
+    <div id="header">
+        <span id="project-name">-</span>
+        <button id="btn-sync" class="hdr-btn">同步</button>
+        <button id="btn-help" class="hdr-btn">说明</button>
+        <button id="btn-files" class="hdr-btn">Files</button>
+        <span id="status-indicator">
+            <span id="status-text"></span>
+            <span id="status-dot"></span>
+        </span>
+    </div>
+
+    <div id="help-guide">
+        <button class="help-close" id="btn-help-close">收起</button>
+        <div class="guide-title">使用说明</div>
+        <div class="guide-section">
+        通过远程服务器中转，连接到 Mac 上运行的 Claude Code，直接操作对应项目目录下的文件。AI 调用、文件读写、命令执行都在 Mac 完成。
+        </div>
+        <div class="guide-section">
+        <b>页面功能</b><br>
+        - <b>输入框</b>：发送 prompt，按 Enter 或 ▶ 发送<br>
+        - <b>停止 (■)</b>：中断 Claude / 关闭弹出菜单<br>
+        - <b>同步</b>：重启 Claude，加载 Mac 上最新对话<br>
+        - <b>Files</b>：浏览项目文件、上传/下载<br>
+        - <b>附件 (📎)</b>：选图发给 Claude（输入框也支持粘贴截图）
+        </div>
+        <div class="guide-section">
+        <b>快捷键工具栏</b><br>
+        - <b>Esc / Tab / ↑↓←→</b>：发送到终端
+        </div>
+        <div class="guide-section">
+        <b>常用命令</b>：/help、/cost、/compact、/clear
+        </div>
+    </div>
+
+    <div id="terminal-container"></div>
+
+    <div id="attach-preview">
+        <img id="attach-thumb" src="">
+        <span class="attach-name" id="attach-name"></span>
+        <button class="attach-remove" id="btn-attach-remove">&times;</button>
+    </div>
+    <div id="attach-uploading">上传中...</div>
+
+    <div id="key-toolbar">
+        <button class="key-btn" data-key="escape">Esc</button>
+        <button class="key-btn" data-key="tab">Tab</button>
+        <button class="key-btn" data-key="up">&uarr;</button>
+        <button class="key-btn" data-key="down">&darr;</button>
+        <button class="key-btn" data-key="left">&larr;</button>
+        <button class="key-btn" data-key="right">&rarr;</button>
+    </div>
+
+    <div id="input-area">
+        <button id="btn-attach" title="上传图片">&#128206;</button>
+        <input type="file" id="attach-input" accept="image/*" style="display:none">
+        <textarea id="input-text" placeholder="输入消息..." rows="1"></textarea>
+        <button id="btn-send" class="input-btn">&#9654;</button>
+        <button id="btn-stop" class="input-btn">&#9632;</button>
+    </div>
+
+    <button id="btn-bottom">&darr;</button>
+    <div id="overlay"><div class="spinner"></div><div id="overlay-text">连接中...</div></div>
+
+    <div id="file-panel">
+        <div id="file-header">
+            <button class="icon-btn" id="btn-file-close">&larr;</button>
+            <span id="file-path">/</span>
+            <input type="file" id="file-input" multiple style="display:none">
+            <button id="btn-upload">Upload</button>
+        </div>
+        <div id="upload-progress"></div>
+        <div id="file-list">
+            <div id="file-loading">Loading...</div>
+            <div id="file-empty">Empty folder</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.5.0/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+    <script>
+    (function() {
+        const state = {
+            project: null,
+            ws: null,
+            term: null,
+            fitAddon: null,
+            connected: false,
+            reconnectTimer: null,
+            reconnectDelay: 2000,
+            idleScrollTimer: null,
+            password: '',
+            encoder: new TextEncoder(),
+        };
+        let attachedFile = null;
+
+        function init() {
+            var pathMatch = location.pathname.match(/^\/claude\/([^/]+)/);
+            state.project = (pathMatch && pathMatch[1]) || new URLSearchParams(location.search).get('p');
+            if (!state.project) { showOverlay('Missing project parameter'); return; }
+
+            document.title = 'Claude - ' + state.project;
+            document.getElementById('project-name').textContent = state.project;
+
+            state.password = localStorage.getItem('claude-pwd-' + state.project)
+                || localStorage.getItem('claude-admin-pwd')
+                || '';
+
+            initTerminal();
+            bindEvents();
+            bindLogin();
+            connect();
+        }
+
+        function bindLogin() {
+            var pwdInput = document.getElementById('login-pwd');
+            var loginBtn = document.getElementById('login-btn');
+            var loginErr = document.getElementById('login-error');
+            function doLogin() {
+                var pwd = pwdInput.value.trim();
+                if (!pwd) { loginErr.textContent = '请输入密码'; return; }
+                loginErr.textContent = '';
+                state.password = pwd;
+                document.getElementById('login-screen').classList.remove('show');
+                connect();
+            }
+            loginBtn.addEventListener('click', doLogin);
+            pwdInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') doLogin(); });
+        }
+
+        function showLogin(msg) {
+            var screen = document.getElementById('login-screen');
+            screen.classList.add('show');
+            document.getElementById('login-error').textContent = msg || '';
+            document.getElementById('login-pwd').value = '';
+            setTimeout(function() { document.getElementById('login-pwd').focus(); }, 100);
+        }
+
+        function initTerminal() {
+            state.term = new Terminal({
+                cursorBlink: false,
+                cursorStyle: 'bar',
+                fontSize: 13,
+                fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+                theme: {
+                    background: '#1a1a2e',
+                    foreground: '#cdd6f4',
+                    cursor: '#cdd6f4',
+                    selectionBackground: '#44475a',
+                },
+                scrollback: 5000,
+                convertEol: true,
+                disableStdin: true,
+            });
+            state.fitAddon = new FitAddon.FitAddon();
+            state.term.loadAddon(state.fitAddon);
+
+            var container = document.getElementById('terminal-container');
+            state.term.open(container);
+            state.fitAddon.fit();
+
+            var viewport = container.querySelector('.xterm-viewport');
+            if (viewport) {
+                viewport.addEventListener('scroll', function() {
+                    var atBottom = viewport.scrollTop + viewport.clientHeight >= viewport.scrollHeight - 10;
+                    document.getElementById('btn-bottom').style.display = atBottom ? 'none' : 'block';
+                });
+            }
+
+            if (viewport && 'ontouchstart' in window) {
+                var touchStartY = 0;
+                container.addEventListener('touchstart', function(e) { touchStartY = e.touches[0].clientY; }, { passive: true });
+                container.addEventListener('touchmove', function(e) {
+                    var dy = touchStartY - e.touches[0].clientY;
+                    touchStartY = e.touches[0].clientY;
+                    viewport.scrollTop += dy;
+                }, { passive: true });
+            }
+
+            var xtermTA = container.querySelector('.xterm-helper-textarea');
+            if (xtermTA) {
+                xtermTA.setAttribute('readonly', 'readonly');
+                xtermTA.addEventListener('focus', function(e) { e.target.blur(); });
+            }
+        }
+
+        function connect() {
+            if (state.ws) {
+                state.ws.onclose = null;
+                state.ws.onerror = null;
+                try { state.ws.close(); } catch(e) {}
+                state.ws = null;
+            }
+
+            updateStatus('connecting');
+            showOverlay('连接中...');
+
+            var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            var wsUrl = proto + '//' + location.host + '/claude/' + state.project + '/ws';
+
+            try {
+                state.ws = new WebSocket(wsUrl);
+            } catch (e) {
+                updateStatus('error');
+                showOverlay('连接失败');
+                scheduleReconnect();
+                return;
+            }
+            state.ws.binaryType = 'arraybuffer';
+
+            state.ws.onopen = function() {
+                var authMsg = { columns: state.term.cols, rows: state.term.rows };
+                if (state.password) authMsg.password = state.password;
+                state.ws.send(JSON.stringify(authMsg));
+                updateStatus('connecting');
+            };
+
+            state.ws.onmessage = function(event) {
+                if (!state.connected) {
+                    state.connected = true;
+                    if (state.overlayDeferTimer) { clearTimeout(state.overlayDeferTimer); state.overlayDeferTimer = null; }
+                    updateStatus('connected');
+                    hideOverlay();
+                    if (state.password) localStorage.setItem('claude-pwd-' + state.project, state.password);
+                }
+                var raw = new Uint8Array(event.data);
+                if (raw.length < 1) return;
+                var cmd = String.fromCharCode(raw[0]);
+                if (cmd === '0') {
+                    state.term.write(raw.slice(1));
+                    clearTimeout(state.idleScrollTimer);
+                    state.idleScrollTimer = setTimeout(scrollToBottom, 2000);
+                }
+            };
+
+            state.ws.onclose = function(event) {
+                state.connected = false;
+                if (event.code === 4001) {
+                    state.password = '';
+                    localStorage.removeItem('claude-pwd-' + state.project);
+                    hideOverlay();
+                    showLogin('密码错误');
+                    return;
+                }
+                updateStatus('disconnected');
+                // Don't pop overlay — keep terminal visible. Status dot
+                // shows red while disconnected; turns green again on reconnect.
+                // Mobile networks blip a lot; overlay was the worst UX.
+                scheduleReconnect(true);
+            };
+
+            state.ws.onerror = function() {
+                state.connected = false;
+                updateStatus('error');
+            };
+        }
+
+        function sendRawInput(data) {
+            if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+            state.ws.send(state.encoder.encode('0' + data));
+        }
+        function sendPastedText(data) {
+            if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+            state.ws.send(state.encoder.encode('0\x1b[200~' + data + '\x1b[201~'));
+        }
+        function sendEnter() { sendRawInput(String.fromCharCode(13)); }
+        function sendCtrlC() { sendRawInput(String.fromCharCode(3)); }
+        function sendEscape() { sendRawInput(String.fromCharCode(27)); }
+        function sendKey(key) {
+            var seq = {
+                'up': '\x1b[A', 'down': '\x1b[B', 'right': '\x1b[C', 'left': '\x1b[D',
+                'tab': '\t', 'escape': '\x1b',
+            };
+            if (seq[key]) sendRawInput(seq[key]);
+        }
+        function sendResize() {
+            if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+            var msg = '1' + JSON.stringify({ columns: state.term.cols, rows: state.term.rows });
+            state.ws.send(state.encoder.encode(msg));
+        }
+
+        function scrollToBottom() {
+            state.term.scrollToBottom();
+            var vp = document.querySelector('.xterm-viewport');
+            if (vp) vp.scrollTop = vp.scrollHeight;
+            document.getElementById('btn-bottom').style.display = 'none';
+        }
+
+        function scheduleReconnect(immediate) {
+            if (state.reconnectTimer) { clearTimeout(state.reconnectTimer); state.reconnectTimer = null; }
+            var delay = immediate ? 500 : state.reconnectDelay;
+            state.reconnectTimer = setTimeout(function() { state.reconnectTimer = null; connect(); }, delay);
+        }
+
+        function updateStatus(status) {
+            var dot = document.getElementById('status-dot');
+            var text = document.getElementById('status-text');
+            var colors = { connecting: '#ffd700', connected: '#00cc66', disconnected: '#ff4444', error: '#ff4444' };
+            var labels = { connecting: '连接中', connected: '已连接', disconnected: '已断开', error: '错误' };
+            dot.style.backgroundColor = colors[status] || '#888';
+            text.textContent = labels[status] || '';
+            text.style.color = colors[status] || '#888';
+        }
+        function showOverlay(msg) {
+            document.getElementById('overlay-text').textContent = msg;
+            document.getElementById('overlay').classList.add('show');
+        }
+        function hideOverlay() { document.getElementById('overlay').classList.remove('show'); }
+
+        function makeEl(tag, attrs, text) {
+            var el = document.createElement(tag);
+            if (attrs) for (var k in attrs) el.setAttribute(k, attrs[k]);
+            if (text != null) el.textContent = text;
+            return el;
+        }
+
+        function bindEvents() {
+            var textarea = document.getElementById('input-text');
+
+            document.getElementById('btn-send').addEventListener('click', function() {
+                var text = textarea.value;
+                textarea.value = '';
+                textarea.style.height = 'auto';
+                scrollToBottom();
+                if (attachedFile) {
+                    var imgRef = '看这个截图 ' + attachedFile.path;
+                    text = text ? imgRef + '\n' + text : imgRef;
+                    clearAttach();
+                }
+                if (text) {
+                    if (text.charAt(0) === '/' || text.indexOf('@') !== -1) sendPastedText(text);
+                    else sendRawInput(text);
+                    setTimeout(sendEnter, 300);
+                } else {
+                    sendEnter();
+                }
+            });
+
+            document.getElementById('btn-stop').addEventListener('click', function() {
+                sendEscape();
+                setTimeout(sendCtrlC, 150);
+            });
+
+            document.getElementById('btn-sync').addEventListener('click', function() {
+                if (!state.connected) return;
+                if (!confirm('同步会重启 Claude Code 会话，加载电脑上最新对话。确定？')) return;
+
+                showOverlay('正在同步...');
+                sendRawInput(String.fromCharCode(27));
+                setTimeout(function() {
+                    sendPastedText('/exit');
+                    setTimeout(sendEnter, 300);
+                }, 500);
+                setTimeout(function() {
+                    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+                        state.ws.send(state.encoder.encode('2'));
+                    }
+                    state.term.clear();
+                    sendRawInput('unset CLAUDECODE');
+                    setTimeout(sendEnter, 300);
+                    setTimeout(function() {
+                        sendRawInput('claude -c --dangerously-skip-permissions');
+                        setTimeout(sendEnter, 300);
+                    }, 800);
+                }, 3000);
+                setTimeout(function() { hideOverlay(); scrollToBottom(); }, 6000);
+            });
+
+            document.getElementById('btn-bottom').addEventListener('click', scrollToBottom);
+
+            var helpGuide = document.getElementById('help-guide');
+            document.getElementById('btn-help').addEventListener('click', function() {
+                helpGuide.classList.toggle('show');
+                if (state.fitAddon) setTimeout(function() { state.fitAddon.fit(); sendResize(); }, 100);
+            });
+            document.getElementById('btn-help-close').addEventListener('click', function() {
+                helpGuide.classList.remove('show');
+                localStorage.setItem('claude-help-seen', '1');
+                if (state.fitAddon) setTimeout(function() { state.fitAddon.fit(); sendResize(); }, 100);
+            });
+            if (!localStorage.getItem('claude-help-seen')) helpGuide.classList.add('show');
+
+            document.addEventListener('keydown', function(e) {
+                if (!state.connected) return;
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    textarea.value = ''; textarea.style.height = 'auto';
+                    sendEscape();
+                    return;
+                }
+                if (!textarea.value) {
+                    if (e.key === 'ArrowUp') { e.preventDefault(); sendKey('up'); return; }
+                    if (e.key === 'ArrowDown') { e.preventDefault(); sendKey('down'); return; }
+                    if (e.key === 'ArrowLeft') { e.preventDefault(); sendKey('left'); return; }
+                    if (e.key === 'ArrowRight') { e.preventDefault(); sendKey('right'); return; }
+                    if (e.key === 'Tab') { e.preventDefault(); sendKey('tab'); return; }
+                    if (e.key === 'c' && e.ctrlKey) { e.preventDefault(); sendCtrlC(); return; }
+                }
+            });
+
+            document.querySelectorAll('.key-btn').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (!state.connected) return;
+                    sendKey(this.dataset.key);
+                });
+            });
+
+            textarea.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+                    e.preventDefault();
+                    document.getElementById('btn-send').click();
+                }
+            });
+            textarea.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            });
+
+            // --- Image attach ---
+            document.getElementById('btn-attach').addEventListener('click', function() {
+                document.getElementById('attach-input').click();
+            });
+            document.getElementById('attach-input').addEventListener('change', function() {
+                if (this.files.length > 0) handleAttachImage(this.files[0]);
+                this.value = '';
+            });
+            document.getElementById('btn-attach-remove').addEventListener('click', clearAttach);
+            textarea.addEventListener('paste', function(e) {
+                var items = e.clipboardData && e.clipboardData.items;
+                if (!items) return;
+                for (var i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        e.preventDefault();
+                        var blob = items[i].getAsFile();
+                        if (blob) handleAttachImage(blob);
+                        return;
+                    }
+                }
+            });
+
+            var resizeTimeout;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(function() {
+                    if (state.fitAddon) { state.fitAddon.fit(); sendResize(); }
+                }, 200);
+            });
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', function() {
+                    clearTimeout(resizeTimeout);
+                    resizeTimeout = setTimeout(function() {
+                        if (state.fitAddon) { state.fitAddon.fit(); sendResize(); }
+                    }, 200);
+                });
+            }
+
+            document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'visible') {
+                    if (!state.connected || !state.ws || state.ws.readyState !== WebSocket.OPEN) {
+                        if (state.reconnectTimer) { clearTimeout(state.reconnectTimer); state.reconnectTimer = null; }
+                        showOverlay('恢复连接...');
+                        scheduleReconnect(true);
+                    }
+                }
+            });
+
+            // --- File panel ---
+            var filePath = '.';
+            var filePanel = document.getElementById('file-panel');
+            document.getElementById('btn-files').addEventListener('click', function() {
+                filePath = '.';
+                filePanel.classList.add('show');
+                loadFiles();
+            });
+            document.getElementById('btn-file-close').addEventListener('click', function() {
+                filePanel.classList.remove('show');
+            });
+            document.getElementById('btn-upload').addEventListener('click', function() {
+                document.getElementById('file-input').click();
+            });
+            document.getElementById('file-input').addEventListener('change', function() {
+                var files = this.files;
+                if (!files.length) return;
+                uploadFiles(files);
+                this.value = '';
+            });
+
+            function loadFiles() {
+                var listEl = document.getElementById('file-list');
+                document.getElementById('file-loading').style.display = 'block';
+                document.getElementById('file-empty').style.display = 'none';
+                listEl.querySelectorAll('.file-item').forEach(function(n) { n.remove(); });
+                document.getElementById('file-path').textContent = filePath === '.' ? '/' : '/' + filePath;
+
+                fetch('/files/api/list?project=' + state.project + '&path=' + encodeURIComponent(filePath))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        document.getElementById('file-loading').style.display = 'none';
+                        if (!data.files || !data.files.length) {
+                            document.getElementById('file-empty').style.display = 'block';
+                            if (filePath !== '.') addParentItem(listEl);
+                            return;
+                        }
+                        if (filePath !== '.') addParentItem(listEl);
+                        for (var i = 0; i < data.files.length; i++) addFileItem(listEl, data.files[i]);
+                    })
+                    .catch(function(e) {
+                        document.getElementById('file-loading').textContent = 'Load failed: ' + e.message;
+                    });
+            }
+
+            function buildFileRow(iconText, name, meta, isDir) {
+                var row = makeEl('div', { 'class': 'file-item' });
+                row.appendChild(makeEl('span', { 'class': 'file-icon' }, iconText));
+                var info = makeEl('div', { 'class': 'file-info' });
+                info.appendChild(makeEl('div', { 'class': 'file-name' }, name));
+                info.appendChild(makeEl('div', { 'class': 'file-meta' }, meta));
+                row.appendChild(info);
+                if (!isDir) row.appendChild(makeEl('button', { 'class': 'file-dl' }, 'Download'));
+                return row;
+            }
+
+            function addParentItem(container) {
+                var row = buildFileRow('\u{1F519}', '..', 'Parent directory', true);
+                row.addEventListener('click', function() {
+                    var parts = filePath.split('/');
+                    parts.pop();
+                    filePath = parts.length ? parts.join('/') : '.';
+                    loadFiles();
+                });
+                container.appendChild(row);
+            }
+
+            function addFileItem(container, f) {
+                var icon = f.isDir ? '\u{1F4C1}' : getFileIcon(f.name);
+                var meta = f.isDir ? 'Folder' : f.sizeStr;
+                var row = buildFileRow(icon, f.name, meta, f.isDir);
+                if (f.isDir) {
+                    row.addEventListener('click', function() {
+                        filePath = filePath === '.' ? f.name : filePath + '/' + f.name;
+                        loadFiles();
+                    });
+                } else {
+                    var dlBtn = row.querySelector('.file-dl');
+                    if (dlBtn) {
+                        dlBtn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            var p = filePath === '.' ? f.name : filePath + '/' + f.name;
+                            var a = document.createElement('a');
+                            a.href = '/files/api/download?project=' + state.project + '&path=' + encodeURIComponent(p);
+                            a.download = f.name;
+                            a.click();
+                        });
+                    }
+                }
+                container.appendChild(row);
+            }
+
+            function uploadFiles(files) {
+                var progress = document.getElementById('upload-progress');
+                var done = 0;
+                var total = files.length;
+                progress.style.display = 'block';
+                progress.textContent = 'Uploading 0/' + total + '...';
+                function next(i) {
+                    if (i >= total) {
+                        progress.textContent = 'Done! ' + total + ' file(s) uploaded';
+                        setTimeout(function() { progress.style.display = 'none'; }, 2000);
+                        loadFiles();
+                        return;
+                    }
+                    var f = files[i];
+                    fetch('/files/api/upload?project=' + state.project + '&path=' + encodeURIComponent(filePath) + '&name=' + encodeURIComponent(f.name), {
+                        method: 'POST',
+                        body: f,
+                    }).then(function() {
+                        done++;
+                        progress.textContent = 'Uploading ' + done + '/' + total + '...';
+                        next(i + 1);
+                    }).catch(function(e) {
+                        progress.textContent = 'Error: ' + f.name + ' - ' + e.message;
+                        next(i + 1);
+                    });
+                }
+                next(0);
+            }
+
+            function getFileIcon(name) {
+                var ext = name.split('.').pop().toLowerCase();
+                var icons = {
+                    png: '\u{1F5BC}', jpg: '\u{1F5BC}', jpeg: '\u{1F5BC}', gif: '\u{1F5BC}', svg: '\u{1F5BC}', webp: '\u{1F5BC}',
+                    pdf: '\u{1F4C4}', doc: '\u{1F4C4}', docx: '\u{1F4C4}', xls: '\u{1F4C4}', xlsx: '\u{1F4C4}',
+                    zip: '\u{1F4E6}', rar: '\u{1F4E6}', '7z': '\u{1F4E6}', tar: '\u{1F4E6}', gz: '\u{1F4E6}',
+                    mp4: '\u{1F3A6}', avi: '\u{1F3A6}', mov: '\u{1F3A6}', mp3: '\u{1F3B5}', wav: '\u{1F3B5}',
+                };
+                return icons[ext] || '\u{1F4C4}';
+            }
+        }
+
+        function handleAttachImage(file) {
+            if (!file || file.type.indexOf('image') === -1) return;
+            var reader = new FileReader();
+            reader.onload = function() { document.getElementById('attach-thumb').src = reader.result; };
+            reader.readAsDataURL(file);
+
+            var fname = file.name || ('screenshot_' + Date.now() + '.png');
+            document.getElementById('attach-name').textContent = fname + ' (上传中...)';
+            document.getElementById('attach-preview').classList.add('show');
+            document.getElementById('attach-uploading').style.display = 'block';
+
+            fetch('/files/api/upload?project=' + state.project + '&path=.&name=' + encodeURIComponent(fname), {
+                method: 'POST', body: file,
+            }).then(function(r) { return r.json ? r.json() : r.text(); }).then(function() {
+                attachedFile = { name: fname, path: fname };
+                document.getElementById('attach-name').textContent = fname;
+                document.getElementById('attach-uploading').style.display = 'none';
+            }).catch(function(e) {
+                document.getElementById('attach-name').textContent = '上传失败: ' + e.message;
+                document.getElementById('attach-uploading').style.display = 'none';
+                setTimeout(clearAttach, 2000);
+            });
+        }
+        function clearAttach() {
+            attachedFile = null;
+            document.getElementById('attach-preview').classList.remove('show');
+            document.getElementById('attach-thumb').src = '';
+            document.getElementById('attach-name').textContent = '';
+        }
+
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+        else init();
+    })();
+    </script>
+</body>
+</html>

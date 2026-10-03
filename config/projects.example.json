@@ -1,0 +1,4 @@
+{
+  "admin":   { "name": "Admin",   "port": 7682, "path": "/Users/you/admin" },
+  "friend":  { "name": "Friend",  "port": 7686, "path": "/Users/you/friend", "password": "friend-code" }
+}
